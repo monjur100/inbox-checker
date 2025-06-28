@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Inboxing Checker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .sidebar {
+      width: 100px;
+      text-align: center;
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 10px;
+      margin-right: 20px;
+    }
+    .sidebar h2 {
+      margin: 0;
+      font-size: 18px;
+      color: #007bff;
+    }
+    .sidebar p {
+      font-size: 24px;
+      margin: 10px 0 0;
+    }
+    .main {
+      flex: 1;
+    }
+    .header {
+      display: flex;
+      margin-bottom: 20px;
+    }
+    .header input {
+      flex: 1;
+      padding: 10px;
+      font-size: 16px;
+    }
+    .header button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #007bff;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+    }
+    .box {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      border: 1px solid #ddd;
+      margin-bottom: 10px;
+      padding: 10px;
+    }
+    .box img {
+      width: 50px;
+      height: 50px;
+      margin-right: 15px;
+    }
+    .stars {
+      background: #ffffcc;
+      padding: 2px 5px;
+      margin-right: 5px;
+      font-weight: bold;
+      color: green;
+      border-radius: 4px;
+    }
+    .details {
+      flex: 1;
+    }
+    .details .inbox-label {
+      display: inline-block;
+      background: #28a745;
+      color: #fff;
+      padding: 2px 6px;
+      font-size: 14px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+    .details .spam-label {
+      display: inline-block;
+      background: #dc3545;
+      color: #fff;
+      padding: 2px 6px;
+      font-size: 14px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+    .details .sender {
+      font-weight: bold;
+      margin-bottom: 3px;
+    }
+    .loading {
+      text-align: center;
+      padding: 20px;
+    }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border-left-color: #09f;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar" id="sidebar">
+    <h2>Inbox</h2>
+    <p id="inbox-rate">0%</p>
+  </div>
+  <div class="main">
+    <h1>Inboxing Checker</h1>
+    <div class="header">
+      <input id="searchInput" placeholder="Search with Sender name or email" />
+      <button id="checkBtn">Check</button>
+    </div>
+    <div id="boxes">
+      <div class="box">
+        <div class="stars">***</div>
+        <img src="https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico" alt="Gmail">
+        <div class="details">
+          Search with email or sender name.
+        </div>
+      </div>
+      <div class="box">
+        <img src="https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico" alt="Gmail">
+        <div class="details">
+          Search with email or sender name.
+        </div>
+      </div>
+      <div class="box">
+        <div class="stars">***</div>
+        <img src="https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico" alt="Gmail">
+        <div class="details">
+          Search with email or sender name.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const checkBtn = document.getElementById('checkBtn');
+      const searchInput = document.getElementById('searchInput');
+      const boxesContainer = document.getElementById('boxes');
+      const inboxRate = document.getElementById('inbox-rate');
+
+      checkBtn.addEventListener('click', async () => {
+        const email = searchInput.value.trim();
+        if (!email) {
+          alert('Please enter a sender email');
+          return;
+        }
+
+        // Show loading state
+        boxesContainer.innerHTML = `
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Checking email delivery...</p>
+          </div>
+        `;
+
+        try {
+          const results = await window.electronAPI.checkInbox(email);
+          updateUI(results, email);
+        } catch (error) {
+          boxesContainer.innerHTML = `
+            <div class="box">
+              <div class="details" style="color: red;">
+                Error: ${error.message}
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      function updateUI(results, email) {
+        // Calculate inbox rate
+        const totalAccounts = results.length;
+        const inboxCount = results.filter(r => r.folder === 'Inbox').length;
+        const inboxPercentage = Math.round((inboxCount / totalAccounts) * 100);
+        
+        // Update sidebar
+        inboxRate.textContent = `${inboxPercentage}%`;
+        if (inboxPercentage >= 70) {
+          inboxRate.style.color = '#28a745';
+        } else if (inboxPercentage >= 30) {
+          inboxRate.style.color = '#ffc107';
+        } else {
+          inboxRate.style.color = '#dc3545';
+        }
+
+        // Build results boxes
+        let boxesHTML = '';
+        results.forEach((result, index) => {
+          const labelClass = result.folder === 'Inbox' ? 'inbox-label' : 'spam-label';
+          const boxStyle = result.folder === 'Inbox' ? 'background:#e6ffe6;' : 'background:#ffe6e6;';
+          
+          boxesHTML += `
+            <div class="box" style="${boxStyle}">
+              ${index % 2 === 0 ? '<div class="stars">***</div>' : ''}
+              <img src="https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico" alt="Gmail">
+              <div class="details">
+                <div class="sender">"Q. Terrell"<br>${email}</div>
+                Vendor File Archived<br>
+                <span class="${labelClass}">${result.folder}</span>
+              </div>
+            </div>
+          `;
+        });
+
+        boxesContainer.innerHTML = boxesHTML;
+      }
+    });
+  </script>
+</body>
+</html>
